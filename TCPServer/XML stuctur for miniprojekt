@@ -1,0 +1,19 @@
+<?xml version ="1.0" encoding="UTF-8"?>
+<sensorReading>
+    <StationID type = "int"> Station_ID </StationID>
+    <CarrierID type ="int"> Carrier_ID </CarrierID>
+    <DateAndTime type = "string"> DateAndTime </DateAndTime>
+</sensorReading>
+
+
+
+
+
+
+
+
+
+
+
+
+
