@@ -17,7 +17,6 @@ class PublisherNode(Node):
     def send_data(self):
         msg = String()
         msg.data = str(carrierID) + "," + str(stationID)
-
         self.xml_publisher.publish(msg)
 
 
@@ -25,4 +24,4 @@ def main(args=None):
     rclpy.init(args=args)
     node = PublisherNode()
     rclpy.spin(node)
-    rclpy.shutdown
+    rclpy.shutdown()
