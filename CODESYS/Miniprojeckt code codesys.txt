@@ -1,0 +1,118 @@
+CASE state OF
+
+	0: //Initiate
+	RFID.ClearError();
+	TCPclient.Connect(sIP:='10.0.2.15',uiPort:=12345);
+	state := 1;
+
+	1: //Wait for TCPclient is connected to server
+	IF TCPclient.xConnected AND TCPclient.xReady THEN
+		IO.xQA1_RIGHT := TRUE;
+		IO.xMB20 := FALSE;
+		state:=2;
+	END_IF
+
+	2: //Wait for RFID to be ready
+	IF RFID.xReady THEN
+		RFID.Connect(32,0,1);
+		state := 3;
+	END_IF
+
+	3: //Wait for RFID is connected
+	IF RFID.xReady THEN
+		state := 4;
+	END_IF
+
+	4: //Slowing down the carrier
+	IF IO.xBG23 = TRUE THEN // Detcet noget ved sensor
+		IO.xQA1_SLOW := TRUE;
+		state := 5;
+	END_IF
+
+	5: //Wait for carrier and send data
+	IF IO.xBG21 = TRUE THEN // Detect noget ved sensor
+		IO.xMB20 := FALSE;	// Lukker gate
+		state := 6;
+	END_IF
+
+	6: // RFID read tag
+	RFID.ReadTag(uiStartAddress :=0, uiDataLength := SIZEOF(RFID_DATA), ADR(RFID_DATA));
+	state := 7;
+
+	7: // Wait for RFID read
+	IF RFID.xReady THEN
+		Carrier_ID:= dc_ecp.SwapWORD(RFID_Data.uiCarrierID);//Bytter rundt på bytes for at få den rigitge værdi
+		Carrier_ID_String := UINT_TO_STRING(Carrier_ID);
+		StationID := '9';
+		DateTimeFB.xExecute := TRUE;
+		state:=1000;
+	END_IF
+
+	1000:
+	IF DateTimeFB.xDone THEN
+		DateTime := DateTimeFB.dtDateAndTime;
+		DateTimeString := DT_TO_STRING(DateTime);
+	END_IF
+	state := 1001;
+
+	1001: //Opsætning af xml structure
+	DataOut := '<?xml version="1.0" encoding="UTF-8"?>';
+	DataOut := ConCat(DataOut, '<sensorReading>');
+	DataOut := ConCat(DataOut,'<StationID type ="int">');
+	DataOut := ConCat(DataOut, StationID);
+	DataOut := ConCat(DataOut,'</StationID>');
+	DataOut := ConCat(DataOut,'<CarrierID type ="int">');
+	DataOut := ConCat(DataOut, Carrier_ID_String);
+	DataOut := ConCat(DataOut,'</CarrierID>');
+	DataOut := ConCat(DataOut,'<DateAndTime type ="string">');
+	DataOut := ConCat(DataOut,DateTimeString);
+	DataOut := ConCat(DataOut,'</DateAndTime>');
+	DataOut := ConCat(DataOut,'</sensorReading>');
+	State := 1002;
+
+	1002: //Sent data to server
+		TCPclient.Send(pToSend:=ADR(dataOUT), uiSizeToSend:= SIZEOF(dataOUT));
+		state:=1003;
+
+	1003: //Wait for TCP data from server
+	IF TCPclient.xReady THEN
+		TCPclient.Receive(pToReceive:=ADR(dataIn), UiSizeTOReceive:=SIZEOF(dataIn));
+		//ProccesTime := STRING_TO_INT(dataIn);
+		state:=40;
+	END_IF
+
+	40: //Proces data
+	IF TCPclient.xReady THEN
+		wait(IN := TRUE, Pt := T#20S);
+		//wait(IN := TRUE, Pt := INT_TO_STRIND(ProccesTime));
+		IO.xQA1_STOP := TRUE; // Stop transport bånd
+		state := 26;
+	END_IF
+
+	26: // Wait for timer
+	IF wait.Q = TRUE THEN
+		wait(IN := FALSE);
+		IO.xMB20 := TRUE;
+		IO.xQA1_SLOW := FALSE;
+		IO.xQA1_RIGHT := TRUE;
+		state := 30;
+	END_IF
+
+
+	30: //Wait for timer to stop
+		IO.xMB20 := TRUE; // Gate åbnes
+		IO.xQA1_STOP := FALSE;
+		IO.xQA1_SLOW := FALSE;
+		IO.xQA1_RIGHT := TRUE;
+		state := 4;
+
+
+
+
+
+
+END_CASE
+wait();
+RFID();
+TCPclient();
+DateTimeFB();
